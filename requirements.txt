@@ -1,0 +1,17 @@
+flask
+python-dotenv
+
+# Groq LLM
+groq
+
+# Image generation
+gradio-client
+Pillow
+
+# Text-to-Speech
+TTS
+soundfile
+torch
+
+# Utilities
+numpy
