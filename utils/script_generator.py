@@ -15,7 +15,7 @@ class ScriptGenerator:
         """
         Extract ONLY the first complete JSON array using bracket depth tracking.
         Handles:
-        - Extra text before/after
+        - Extra text before/after, without json errors
         - Multiple arrays
         - Model commentary
         """
