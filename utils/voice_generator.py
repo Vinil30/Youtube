@@ -9,14 +9,14 @@ class VoiceGenerator:
 
         # AI 1 - Male (VCTK multi-speaker)
         self.tts_ai1 = TTS(
-            model_name="tts_models/en/vctk/vits",
+            model_name="Abhinay45/XTTS-Hindi-finetuned",
             progress_bar=False,
             gpu=False
         )
 
         # AI 2 - Male (VCTK multi-speaker)
         self.tts_ai2 = TTS(
-            model_name="tts_models/en/vctk/vits",
+            model_name="ai4bharat/indic-parler-tts",
             progress_bar=False,
             gpu=False
         )
