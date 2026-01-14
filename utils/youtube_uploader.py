@@ -29,12 +29,34 @@ class YouTubeUploader:
                     "client_secret.json",
                     SCOPES
                 )
-                self.creds = flow.run_local_server(port=0)
+                self.creds = flow.run_local_server(port=8080)
 
             with open("token.pickle", "wb") as f:
                 pickle.dump(self.creds, f)
 
         return build("youtube", "v3", credentials=self.creds)
+    def clean_title(self, title: str) -> str:
+        title = title.strip()
+        if len(title.split()) < 5:
+            title = f"{title} | A Calm AI Podcast Discussion"
+        return title[:100]
+
+
+    def clean_description(self, description: str) -> str:
+        base_disclaimer = (
+            "This video features an AI-generated podcast-style discussion created "
+            "for educational and informational purposes.\n\n"
+            "The voices and conversation are generated using artificial intelligence "
+            "and do not represent real individuals or opinions.\n\n"
+            "This content is intended to encourage learning and thoughtful discussion."
+        )
+
+        description = description.strip()
+        if len(description) < 40:
+            description = base_disclaimer
+
+        return description
+
 
     def upload_video(
         self,
@@ -47,16 +69,18 @@ class YouTubeUploader:
         youtube = self.authenticate()
 
         request_body = {
-            "snippet": {
-                "title": title,
-                "description": description,
-                "tags": tags or [],
-                "categoryId": "22"  # People & Blogs
-            },
-            "status": {
-                "privacyStatus": privacy_status
-            }
-        }
+    "snippet": {
+        "title": self.clean_title(title),
+        "description": self.clean_description(description),
+        "tags": tags or [],
+        "categoryId": "22"
+    },
+    "status": {
+        "privacyStatus": privacy_status
+    }
+}
+
+
 
         media = MediaFileUpload(
             video_path,
