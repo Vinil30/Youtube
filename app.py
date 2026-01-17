@@ -132,8 +132,6 @@ def render_video():
     return jsonify({
         "video_url": "/outputs/final_video.mp4"
     })
-
-
 # -------------------- YouTube Upload --------------------
 @app.route("/api/upload-youtube", methods=["POST"])
 def upload_youtube():
@@ -144,10 +142,12 @@ def upload_youtube():
         return jsonify({"error": "Video not found"}), 400
 
     uploader = YouTubeUploader()
+
     response = uploader.upload_video(
         video_path=video_path,
-        title=data.get("title", "AI Generated Podcast"),
-        description=data.get("description", "AI-generated podcast."),
+        context=data.get("context"),  # 👈 THIS is key
+        title=data.get("title"),
+        description=data.get("description"),
         tags=data.get("tags", ["AI podcast"]),
         privacy_status="unlisted"
     )
