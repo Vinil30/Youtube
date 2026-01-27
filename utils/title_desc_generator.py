@@ -14,7 +14,7 @@ class TitleAndDescGenerator:
         self,
         context: str,
         api_key: str | None = None,
-        model: str = "llama-3.1-8b-instant"
+        model: str = "openai/gpt-oss-20b"
     ):
         self.context = context
         self.api_key = api_key or os.environ.get("GROQ_API_KEY_1")
@@ -48,7 +48,7 @@ class TitleAndDescGenerator:
 You are an expert YouTube content strategist and growth-focused creator.
 
 You are generating the YouTube title, description, and thumbnail prompt for the following topic:
-"{self.context}"
+Ghost stories that are randoly produced by ai, so give a random title and in description just mention they are entertainment purpose only and the story is not true its just an ai made fictional story
 
 Your task is to generate EXACTLY THREE things:
 1) A YouTube TITLE
@@ -56,37 +56,49 @@ Your task is to generate EXACTLY THREE things:
 3) A THUMBNAIL GENERATION PROMPT
 
 CONTEXT:
-- AI-generated podcast-style discussion
-- Calm, thoughtful, educational tone
+- AI-generated Hindi ghost horror story
+- Dark, eerie, suspenseful tone
+- Storytelling format (single narrator)
 - Voices are synthetic
-- For educational and informational purposes only
-- No impersonation
-- No clickbait or misinformation
+- For entertainment purposes only
+- Inspired by folklore and imagination
+- No real incidents claimed as factual
+
 
 RULES:
 
 TITLE:
-- Professional and curiosity-driven
+- Creepy and curiosity-driven
 - No emojis
-- No clickbait phrases
-- Subtly indicate AI podcast
+- No clickbait words like shocking, real footage, proof
+- Should feel like a horror story title
+- Do not subtly hint AI-generated
 - Max 100 characters
+- Suitable for YouTube Shorts
+-Use Hinglish language
+
 
 DESCRIPTION:
-- MUST mention AI-generated content
-- MUST state educational purposes only
-- MUST mention synthetic voices
-- 2–3 short paragraphs
-- Natural tone, not legal-heavy
+- MUST mention AI-generated story
+- MUST say fictional / for entertainment
+- MUST mention synthetic voice
+- Written in simple hinglish
+- 2 short paragraphs max
+- Natural storytelling tone, not legal-heavy
+- Include #Shorts
+
 
 THUMBNAIL PROMPT:
 - Visual description only
-- Represents an AI podcast discussion
-- Modern, clean, professional
+- Extremely scary and unsettling
+- Horror atmosphere (dark street, abandoned place, fog, shadows)
+- No readable text
 - No real human faces
-- Abstract or AI-style figures allowed
-- High contrast, YouTube-friendly
-- No misleading visuals
+- Shadowy or blurred human-like silhouettes allowed
+- High contrast, cinematic horror lighting
+- YouTube Shorts friendly
+- No misleading real-world claims
+
 
 OUTPUT FORMAT (STRICT JSON ONLY):
 

@@ -30,28 +30,37 @@ class ImageforArenaPulse:
         """
 
         base_prompt = f"""
-Create a calm, cinematic, high-quality background image for an AI podcast video.
+Create a terrifying, cinematic horror background image for a ghost story video.
 
-Context (may be short or imperfect English):
+Context (may be short or imperfect):
 "{self.context}"
 
 Style requirements:
-- Minimalistic and visually soothing
+- Extremely scary and unsettling atmosphere
 - No text, no typography, no captions
-- Two characters facinng each other with a mic and conducting a podcast.
-- Soft lighting, cinematic atmosphere
-- Abstract or symbolic representation of the topic
-- Professional YouTube podcast background
-- Clean composition, not distracting
-- 16:9 landscape orientation
+- No people clearly visible, only vague human-like silhouettes if needed
+- Dark abandoned location such as an empty street, old building, forest, tunnel, or ruins
+- One unnatural presence suggested subtly, not fully visible
+- Deep shadows, fog, mist, or darkness dominating the scene
+- Horror-movie cinematic lighting, low-key lighting
+- No bright colors, mostly dark tones
+- Realistic, high-detail, photo-realistic style
+- Composition should create fear and tension, not comfort
+- Vertical-friendly framing (can be cropped to 9:16)
 
 Visual tone:
-- Modern
-- Calm
-- Thoughtful
-- High detail
-- Aesthetic but subtle
+- Dreadful
+- Unsettling
+- Sinister
+- Silent
+- Psychological horror
+- Feels like something is watching from the darkness
+
+Important:
+- Image should feel threatening even without showing the ghost clearly
+- Viewer should feel fear, suspense, and discomfort at first glance
 """
+
 
         self.prompt = base_prompt.strip()
         return self.prompt
@@ -71,8 +80,8 @@ Visual tone:
             prompt=self.prompt,
             seed=0,
             randomize_seed=True,
-            width=1280,
-            height=720,
+            width=720,
+            height=1280,
             num_inference_steps=4,
             api_name="/infer"
         )

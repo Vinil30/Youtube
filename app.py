@@ -5,7 +5,7 @@ import re
 
 FFMPEG_PATH = r"C:\Users\VINIL\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
 
-from utils.script_generator import ScriptGenerator
+from utils.script_generator import GhostStoryGenerator
 from utils.image_generator import ImageforArenaPulse
 from utils.voice_generator import VoiceGenerator
 from utils.youtube_uploader import YouTubeUploader
@@ -53,18 +53,19 @@ def index():
 
 
 # -------------------- STEP 1: Generate Script + Image + Voices --------------------
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
     data = request.json
     context = data.get("topic")
 
     if not context:
-        return jsonify({"error": "Topic is required"}), 400
+        context = "Ghost story with real places included"
 
-    # -------- Script (TURN BASED) --------
-    sg = ScriptGenerator()
-    script_result = sg.generate_podcast_script(context)
-    dialogue = script_result["dialogue"]
+    # -------- Script (SINGLE STORY) --------
+    sg = GhostStoryGenerator()
+    story_text = sg.generate_story(context)
+    story_text = clean_for_tts(story_text)
 
     # -------- Image --------
     img_gen = ImageforArenaPulse(context=context)
@@ -72,70 +73,65 @@ def generate():
     image = img_gen.generate_image_arena(image_prompt)
     image.save(os.path.join(OUTPUT_DIR, "bg.png"))
 
-    # -------- Voices (TURN BASED) --------
+    # -------- Voice (SINGLE SPEAKER) --------
     vg = VoiceGenerator(output_dir=OUTPUT_DIR)
-    audio_chunks = []
-
-    for i, turn in enumerate(dialogue):
-        clean_text = clean_for_tts(turn["text"])
-
-        if turn["speaker"] == "ai1":
-            path = vg.generate_ai1_chunk(clean_text, i)
-        else:
-            path = vg.generate_ai2_chunk(clean_text, i)
-
-        audio_chunks.append(path)
+    audio_path, gender = vg.generate_story_voice(
+        text=story_text,
+        filename="story.wav"
+    )
 
     return jsonify({
         "status": "generated",
-        "turns": len(dialogue),
-        "total_words": script_result["total_words"]
+        "voice_gender": gender,
+        "story_words": len(story_text.split())
     })
+
 
 
 # -------------------- STEP 2: Render Video --------------------
 @app.route("/api/render-video", methods=["POST"])
 def render_video():
     bg = os.path.join(OUTPUT_DIR, "bg.png")
-    combined_audio = os.path.join(OUTPUT_DIR, "combined.wav")
+    audio = os.path.join(OUTPUT_DIR, "story.wav")
     output_video = os.path.join(OUTPUT_DIR, "final_video.mp4")
 
-    # collect all chunks in order
-    chunks = sorted([
-        os.path.join(OUTPUT_DIR, f)
-        for f in os.listdir(OUTPUT_DIR)
-        if f.startswith("chunk_") and f.endswith(".wav")
-    ])
-
-    if not chunks:
-        return jsonify({"error": "No audio chunks found"}), 400
-
-    merge_audio_chunks(chunks, combined_audio)
+    if not os.path.exists(audio):
+        return jsonify({"error": "Audio not found"}), 400
 
     subprocess.run(
-        [
-            FFMPEG_PATH, "-y",
-            "-loop", "1",
-            "-i", bg,
-            "-i", combined_audio,
-            "-c:v", "libx264",
-            "-tune", "stillimage",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-shortest",
-            "-pix_fmt", "yuv420p",
-            output_video
-        ],
-        check=True
-    )
+    [
+        FFMPEG_PATH, "-y",
+        "-loop", "1",
+        "-i", bg,
+        "-i", audio,
+
+        # 🔽 ADD THIS
+        "-vf", "scale=1080:1920,setsar=1",
+
+        "-c:v", "libx264",
+        "-tune", "stillimage",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-shortest",
+        "-pix_fmt", "yuv420p",
+        output_video
+    ],
+    check=True
+)
+
 
     return jsonify({
         "video_url": "/outputs/final_video.mp4"
     })
+
 # -------------------- YouTube Upload --------------------
 @app.route("/api/upload-youtube", methods=["POST"])
 def upload_youtube():
     data = request.json or {}
+
+    topic = data.get("topic")
+    if not topic:
+        topic = "Ghost story with real places included"
 
     video_path = os.path.join(OUTPUT_DIR, "final_video.mp4")
     if not os.path.exists(video_path):
@@ -145,17 +141,16 @@ def upload_youtube():
 
     response = uploader.upload_video(
         video_path=video_path,
-        context=data.get("context"),  # 👈 THIS is key
-        title=data.get("title"),
-        description=data.get("description"),
-        tags=data.get("tags", ["AI podcast"]),
-        privacy_status="unlisted"
+        context=topic,   # ✅ THIS IS ENOUGH
+        tags=["Artificial Intelligence"],
+        privacy_status="public"
     )
 
     return jsonify({
         "status": "uploaded",
         "youtube_url": f"https://www.youtube.com/watch?v={response['id']}"
     })
+
 
 
 # -------------------- Serve Output Files --------------------

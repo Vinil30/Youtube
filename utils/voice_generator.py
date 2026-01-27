@@ -1,54 +1,44 @@
+import edge_tts
+import asyncio
+import random
 import os
-from TTS.api import TTS
 
 
 class VoiceGenerator:
     def __init__(self, output_dir="outputs"):
-        os.makedirs(output_dir, exist_ok=True)
         self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
 
-        # AI 1 - Male (VCTK multi-speaker)
-        self.tts_ai1 = TTS(
-            model_name="tts_models/en/vctk/vits",
-            progress_bar=False,
-            gpu=False
-        )
+        # Hindi voices (correct)
+        self.voices = {
+            "male": "hi-IN-MadhurNeural",
+            "female": "hi-IN-SwaraNeural"
+        }
 
-        # AI 2 - Male (VCTK multi-speaker)
-        self.tts_ai2 = TTS(
-            model_name="tts_models/en/vctk/vits",
-            progress_bar=False,
-            gpu=False
-        )
-
-        # Hard-locked male speakers
-        self.ai1_speaker = "p226"
-        self.ai2_speaker = "p231"
-
-    # -----------------------------
-    # Generate ONE turn (AI 1)
-    # -----------------------------
-    def generate_ai1_chunk(self, text: str, index: int) -> str:
-        output_path = os.path.join(self.output_dir, f"chunk_{index:03d}_ai1.wav")
-
-        self.tts_ai1.tts_to_file(
+    async def _generate(self, text: str, output_path: str, voice: str):
+        tts = edge_tts.Communicate(
             text=text,
-            file_path=output_path,
-            speaker=self.ai1_speaker
+            voice=voice,
+            rate="-10%",   # slower = creepier
+            pitch="-3Hz"   # deeper tone
         )
+        await tts.save(output_path)
 
-        return output_path
+    def generate_story_voice(self, text: str, filename="story.wav"):
+        gender = random.choice(["male", "female"])
+        voice = self.voices[gender]
 
-    # -----------------------------
-    # Generate ONE turn (AI 2)
-    # -----------------------------
-    def generate_ai2_chunk(self, text: str, index: int) -> str:
-        output_path = os.path.join(self.output_dir, f"chunk_{index:03d}_ai2.wav")
+        output_path = os.path.join(self.output_dir, filename)
 
-        self.tts_ai2.tts_to_file(
-            text=text,
-            file_path=output_path,
-            speaker=self.ai2_speaker
-        )
+        # 🔥 IMPORTANT: Flask-safe event loop handling
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-        return output_path
+        try:
+            loop.run_until_complete(
+                self._generate(text, output_path, voice)
+            )
+        finally:
+            loop.close()
+
+        return output_path, gender

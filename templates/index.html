@@ -482,9 +482,8 @@
       </div>
       
       <div class="input-group">
-        <label for="topic"><i class="fas fa-lightbulb"></i> Podcast Topic</label>
-        <input id="topic" placeholder="Enter a topic for your podcast (e.g., Future of AI, Health & Wellness, Space Exploration)">
-      </div>
+       </div>
+       <button class="btn" onclick="generateAll()">Generate & Upload</button>
 
       <button class="btn" onclick="generate()">
         <i class="fas fa-magic"></i> Generate Script & Voice
@@ -552,6 +551,8 @@
   </div>
 
   <script>
+    let currentTopic = "";
+
     // Update step indicator
     function updateStepIndicator(step) {
       // Reset all steps
@@ -586,11 +587,6 @@
     updateStepIndicator(1);
 
     async function generate() {
-  const topic = document.getElementById("topic").value.trim();
-  if (!topic) {
-    showStatus("Please enter a podcast topic", "error");
-    return;
-  }
 
   updateStepIndicator(1);
   showStatus("Generating script, image, and voices...", "processing");
@@ -599,7 +595,7 @@
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic })
+      body: JSON.stringify({ topic:"auto" })
     });
 
     const data = await res.json();
@@ -620,16 +616,7 @@
     console.error(err);
   }
 }
-async function uploadYouTube() {
-  const res = await fetch("/api/upload-youtube", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({})
-  });
 
-  const data = await res.json();
-  console.log(data);
-}
 
 
     async function renderVideo() {
@@ -659,19 +646,52 @@ async function uploadYouTube() {
     console.error(err);
   }
 }
+async function generateAll() {
+  try {
+    updateStepIndicator(1);
+    showStatus("Generating story and voice...", "processing");
+
+    await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: "random" })
+    });
+
+    updateStepIndicator(2);
+    showStatus("Rendering video...", "processing");
+
+    await fetch("/api/render-video", { method: "POST" });
+
+    updateStepIndicator(3);
+    showStatus("Uploading to YouTube...", "processing");
+
+    await fetch("/api/upload-youtube", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: "auto" })
+    });
+
+    updateStepIndicator(4);
+    showStatus("Done! Uploaded successfully ✅", "success");
+
+  } catch (err) {
+    showStatus("Something failed in pipeline", "error");
+    console.error(err);
+  }
+}
 
 
-    async function uploadYouTube() {
+async function uploadYouTube() {
+
   showStatus("Uploading to YouTube…", "processing");
-
-  const title = document.getElementById("ytTitle").value;
-  const description = document.getElementById("ytDesc").value;
 
   try {
     const res = await fetch("/api/upload-youtube", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description })
+      body: JSON.stringify({
+        topic: currentTopic   // ✅ BACKEND EXPECTS THIS
+      })
     });
 
     const data = await res.json();
@@ -692,6 +712,7 @@ async function uploadYouTube() {
     console.error(err);
   }
 }
+
 
     // Helper function to show status messages
     function showStatus(message, type = "processing") {
