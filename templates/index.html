@@ -551,7 +551,6 @@
   </div>
 
   <script>
-    let currentTopic = "";
 
     // Update step indicator
     function updateStepIndicator(step) {
@@ -604,8 +603,9 @@
       showStatus(data.message || data.error, "error");
       return;
     }
+document.getElementById("script").value =
+  `Story generated successfully.\nWord count: ${data.story_words}`;
 
-    document.getElementById("script").value = data.script;
     document.getElementById("result").classList.remove("hidden");
 
     updateStepIndicator(2);
@@ -645,59 +645,71 @@
     showStatus("Backend error while rendering video", "error");
     console.error(err);
   }
-}
-async function generateAll() {
+}async function generateAll() {
   try {
+    // STEP 1: GENERATE
     updateStepIndicator(1);
-    showStatus("Generating story and voice...", "processing");
+    showStatus("Generating story, image, and voice...", "processing");
 
-    await fetch("/api/generate", {
+    let res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic: "random" })
     });
 
+    let data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Generation failed");
+    }
+
     updateStepIndicator(2);
     showStatus("Rendering video...", "processing");
 
-    await fetch("/api/render-video", { method: "POST" });
+    // STEP 2: RENDER
+    res = await fetch("/api/render-video", { method: "POST" });
+    data = await res.json();
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Video rendering failed");
+    }
 
     updateStepIndicator(3);
     showStatus("Uploading to YouTube...", "processing");
 
-    await fetch("/api/upload-youtube", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: "auto" })
-    });
+    // STEP 3: UPLOAD
+    res = await fetch("/api/upload-youtube", { method: "POST" });
+    data = await res.json();
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "YouTube upload failed");
+    }
 
     updateStepIndicator(4);
-    showStatus("Done! Uploaded successfully ✅", "success");
+    showStatus(
+      `Done! Uploaded successfully ✅<br>
+       <a href="${data.youtube_url}" target="_blank">Open on YouTube</a>`,
+      "success"
+    );
 
   } catch (err) {
-    showStatus("Something failed in pipeline", "error");
+    showStatus(`Pipeline failed: ${err.message}`, "error");
     console.error(err);
   }
 }
 
 
 async function uploadYouTube() {
-
   showStatus("Uploading to YouTube…", "processing");
 
   try {
     const res = await fetch("/api/upload-youtube", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        topic: currentTopic   // ✅ BACKEND EXPECTS THIS
-      })
+      method: "POST"
     });
 
     const data = await res.json();
 
-    if (data.error || data.status === "error") {
-      showStatus(data.message || data.error, "error");
+    if (data.error) {
+      showStatus(data.error, "error");
       return;
     }
 
@@ -712,6 +724,7 @@ async function uploadYouTube() {
     console.error(err);
   }
 }
+
 
 
     // Helper function to show status messages

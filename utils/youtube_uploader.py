@@ -1,6 +1,5 @@
 import os
 import pickle
-from utils.title_desc_generator import TitleAndDescGenerator
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -13,10 +12,10 @@ class YouTubeUploader:
     def __init__(self):
         self.creds = None
 
+    # --------------------------------------------------
+    # Authentication
+    # --------------------------------------------------
     def authenticate(self):
-        """
-        Handles one-time OAuth and token reuse.
-        """
         if os.path.exists("token.pickle"):
             with open("token.pickle", "rb") as f:
                 self.creds = pickle.load(f)
@@ -35,62 +34,45 @@ class YouTubeUploader:
                 pickle.dump(self.creds, f)
 
         return build("youtube", "v3", credentials=self.creds)
+
+    # --------------------------------------------------
+    # Safety cleaners
+    # --------------------------------------------------
     def clean_title(self, title: str) -> str:
-        title = title.strip()
+        if not title:
+            raise ValueError("Title is required for YouTube upload")
 
-        # Ensure minimum clarity
-        if len(title.split()) < 5:
-            title = f"{title} | AI Horror Story"
-
-
-        # Avoid trailing punctuation issues
         title = title.replace("\n", " ").strip()
 
-        # YouTube hard limit
+        if len(title.split()) < 5:
+            title = f"{title} | Horror Story"
+
         return title[:100]
 
-
-
     def clean_description(self, description: str) -> str:
+        if not description:
+            raise ValueError("Description is required for YouTube upload")
+
         description = description.strip()
 
-        disclaimer = (
-    "\n\n---\n"
-    "This video features an AI-generated fictional horror story created for "
-    "entertainment purposes only.\n\n"
-    "The narration voice is synthetic and generated using artificial intelligence. "
-    "No real incidents are claimed as factual.\n\n"
-    "#Shorts"
-)
+        # YouTube max length safety
+        return description[:5000]
 
-
-        # If LLM already handled disclaimers, don't duplicate
-        if "AI-generated" in description.lower():
-            return description[:5000]
-
-        return f"{description}{disclaimer}"[:5000]
-
-
+    # --------------------------------------------------
+    # Upload
+    # --------------------------------------------------
     def upload_video(
         self,
-        video_path,
-        title=None,
-        description=None,
+        video_path: str,
+        title: str,
+        description: str,
         tags=None,
-        privacy_status="public",
-        context=None
+        privacy_status="public"
     ):
+        if not os.path.exists(video_path):
+            raise FileNotFoundError("Video file not found")
+
         youtube = self.authenticate()
-
-        thumbnail_path = None
-
-        # If context is provided, auto-generate everything
-        if context:
-            generator = TitleAndDescGenerator(context=context)
-            data = generator.generate()
-            title = data["title"]
-            description = data["description"]
-
 
         request_body = {
             "snippet": {
@@ -117,5 +99,4 @@ class YouTubeUploader:
         )
 
         response = request.execute()
-
         return response

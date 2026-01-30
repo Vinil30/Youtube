@@ -16,69 +16,56 @@ app = Flask(__name__)
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-
-# -------------------- helpers --------------------
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
 def clean_for_tts(text: str) -> str:
     text = re.sub(r"[*#_>`~:-]", "", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-def merge_audio_chunks(chunk_files, output_path):
-    # create ffmpeg input list
-    list_file = os.path.join(OUTPUT_DIR, "audio_list.txt")
-    with open(list_file, "w", encoding="utf-8") as f:
-        for file in chunk_files:
-            f.write(f"file '{os.path.abspath(file)}'\n")
-
-    subprocess.run(
-        [
-            FFMPEG_PATH, "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", list_file,
-            "-c", "copy",
-            output_path
-        ],
-        check=True
-    )
-
-    os.remove(list_file)
-
-
-# -------------------- UI --------------------
+# --------------------------------------------------
+# UI
+# --------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-# -------------------- STEP 1: Generate Script + Image + Voices --------------------
-
+# --------------------------------------------------
+# STEP 1: Generate Story + Image + Voice
+# --------------------------------------------------
 @app.route("/api/generate", methods=["POST"])
 def generate():
-    data = request.json
-    context = data.get("topic")
+    data = request.json or {}
+    context = data.get("topic") or "Ghost story with real places included"
 
-    if not context:
-        context = "Ghost story with real places included"
-
-    # -------- Script (SINGLE STORY) --------
+    # -------- Unified Script Generation --------
     sg = GhostStoryGenerator()
-    story_text = sg.generate_story(context)
-    story_text = clean_for_tts(story_text)
+    creative = sg.generate(context)
+
+    story_text = clean_for_tts(creative["story"])
+    title = creative["title"]
+    description = creative["description"]
+    image_prompt = creative["thumbnail_prompt"]
 
     # -------- Image --------
-    img_gen = ImageforArenaPulse(context=context)
-    image_prompt = img_gen.generate_image_prompt()
-    image = img_gen.generate_image_arena(image_prompt)
+    img_gen = ImageforArenaPulse()
+    image = img_gen.generate_image(image_prompt)
     image.save(os.path.join(OUTPUT_DIR, "bg.png"))
 
-    # -------- Voice (SINGLE SPEAKER) --------
+    # -------- Voice (STORY ONLY) --------
     vg = VoiceGenerator(output_dir=OUTPUT_DIR)
     audio_path, gender = vg.generate_story_voice(
         text=story_text,
         filename="story.wav"
     )
+
+    # Store metadata for later upload step
+    with open(os.path.join(OUTPUT_DIR, "meta.txt"), "w", encoding="utf-8") as f:
+        f.write(title + "\n")
+        f.write(description)
 
     return jsonify({
         "status": "generated",
@@ -87,62 +74,66 @@ def generate():
     })
 
 
-
-# -------------------- STEP 2: Render Video --------------------
+# --------------------------------------------------
+# STEP 2: Render Video
+# --------------------------------------------------
 @app.route("/api/render-video", methods=["POST"])
 def render_video():
     bg = os.path.join(OUTPUT_DIR, "bg.png")
     audio = os.path.join(OUTPUT_DIR, "story.wav")
     output_video = os.path.join(OUTPUT_DIR, "final_video.mp4")
 
-    if not os.path.exists(audio):
-        return jsonify({"error": "Audio not found"}), 400
+    if not os.path.exists(bg) or not os.path.exists(audio):
+        return jsonify({"error": "Image or audio missing"}), 400
 
     subprocess.run(
-    [
-        FFMPEG_PATH, "-y",
-        "-loop", "1",
-        "-i", bg,
-        "-i", audio,
-
-        # 🔽 ADD THIS
-        "-vf", "scale=1080:1920,setsar=1",
-
-        "-c:v", "libx264",
-        "-tune", "stillimage",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-shortest",
-        "-pix_fmt", "yuv420p",
-        output_video
-    ],
-    check=True
-)
-
+        [
+            FFMPEG_PATH, "-y",
+            "-loop", "1",
+            "-i", bg,
+            "-i", audio,
+            "-vf", "scale=1080:1920,setsar=1",
+            "-c:v", "libx264",
+            "-tune", "stillimage",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+            "-pix_fmt", "yuv420p",
+            output_video
+        ],
+        check=True
+    )
 
     return jsonify({
         "video_url": "/outputs/final_video.mp4"
     })
 
-# -------------------- YouTube Upload --------------------
+
+# --------------------------------------------------
+# STEP 3: Upload to YouTube
+# --------------------------------------------------
 @app.route("/api/upload-youtube", methods=["POST"])
 def upload_youtube():
-    data = request.json or {}
-
-    topic = data.get("topic")
-    if not topic:
-        topic = "Ghost story with real places included"
-
     video_path = os.path.join(OUTPUT_DIR, "final_video.mp4")
+    meta_path = os.path.join(OUTPUT_DIR, "meta.txt")
+
     if not os.path.exists(video_path):
         return jsonify({"error": "Video not found"}), 400
 
-    uploader = YouTubeUploader()
+    if not os.path.exists(meta_path):
+        return jsonify({"error": "Metadata not found"}), 400
 
+    with open(meta_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        title = lines[0].strip()
+        description = "".join(lines[1:]).strip()
+
+    uploader = YouTubeUploader()
     response = uploader.upload_video(
         video_path=video_path,
-        context=topic,   # ✅ THIS IS ENOUGH
-        tags=["Artificial Intelligence"],
+        title=title,
+        description=description,
+        tags=["AI Horror", "Ghost Story"],
         privacy_status="public"
     )
 
@@ -152,13 +143,16 @@ def upload_youtube():
     })
 
 
-
-# -------------------- Serve Output Files --------------------
+# --------------------------------------------------
+# Serve Output Files
+# --------------------------------------------------
 @app.route("/outputs/<path:filename>")
 def download_file(filename):
     return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
 
 
-# -------------------- Run --------------------
+# --------------------------------------------------
+# Run
+# --------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

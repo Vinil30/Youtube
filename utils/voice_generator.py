@@ -9,11 +9,12 @@ class VoiceGenerator:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-        # Hindi voices (correct)
+        # English voices (correct)
         self.voices = {
-            "male": "hi-IN-MadhurNeural",
-            "female": "hi-IN-SwaraNeural"
-        }
+    "male": "en-US-GuyNeural",
+    "female": "en-US-JennyNeural"
+}
+
 
     async def _generate(self, text: str, output_path: str, voice: str):
         tts = edge_tts.Communicate(
