@@ -44,7 +44,7 @@ STORY RULES:
 
 Duration:
 - 1.5 to 2 minutes narration
-- Approximately 220 to 260 words
+- Approximately 280 to 340 words
 
 --------------------
 TITLE RULES:
@@ -92,7 +92,7 @@ Context:
                 {"role": "user", "content": context or "Generate a ghost story"}
             ],
             temperature=0.6,
-            max_tokens=900,
+            max_tokens=1800,
             response_format={"type": "json_object"}
         )
 
