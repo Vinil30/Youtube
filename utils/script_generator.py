@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import os
 import re
 import json
+import time
 
 load_dotenv()
 
@@ -23,9 +24,32 @@ class GhostStoryGenerator:
         return text.strip()
 
     # --------------------------------------------------
+    # Extract JSON safely from model output
+    # --------------------------------------------------
+    def _extract_json(self, raw_text: str) -> dict:
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError:
+            # Try to extract JSON block manually
+            match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+            raise RuntimeError("Model did not return valid JSON.")
+
+    # --------------------------------------------------
+    # Validate required fields
+    # --------------------------------------------------
+    def _validate_schema(self, data: dict):
+        required = ("story", "title", "description", "thumbnail_prompt")
+        for key in required:
+            if key not in data or not str(data[key]).strip():
+                raise ValueError(f"Missing or empty field: {key}")
+
+    # --------------------------------------------------
     # Main generator
     # --------------------------------------------------
     def generate(self, context: str) -> dict:
+
         system_prompt = f"""
 You are a professional English horror storyteller and YouTube content creator.
 
@@ -34,45 +58,31 @@ along with its title, description, and thumbnail image prompt.
 
 All outputs MUST describe the SAME setting, SAME unseen threat, and SAME atmosphere.
 
---------------------
-STORY RULES:
-- Plain spoken English only
-- No markdown, emojis, or headings
-- Creepy, slow-burn psychological horror
-- Ending must be unsettling
-- Natural pauses using commas and full stops only
+STORY:
+- Plain spoken English
+- Slow-burn psychological horror
+- 280–340 words
+- Unsettling ending
+- No markdown or emojis
 
-Duration:
-- 1.5 to 2 minutes narration
-- Approximately 280 to 340 words
-
---------------------
-TITLE RULES:
+TITLE:
 - Creepy and curiosity-driven
-- No emojis or clickbait words
 - Max 100 characters
 
---------------------
-DESCRIPTION RULES:
-- MUST mention AI-generated story
-- MUST say fictional / for entertainment
-- MUST mention synthetic voice
-- Simple English
-- Max 2 short paragraphs
+DESCRIPTION:
+- Must mention AI-generated story
+- Must mention fictional
+- Must mention synthetic voice
 - Include #Shorts
 
---------------------
-THUMBNAIL PROMPT RULES:
+THUMBNAIL PROMPT:
 - Visual description only
-- Extremely scary and unsettling
-- Dark horror atmosphere
+- Extremely scary
 - No text
 - No real human faces
 - Cinematic lighting
-- Vertical friendly
 
---------------------
-OUTPUT FORMAT (STRICT JSON ONLY):
+OUTPUT STRICTLY IN THIS JSON FORMAT:
 
 {{
   "story": "...",
@@ -85,26 +95,34 @@ Context:
 {context}
 """
 
-        response = self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": context or "Generate a ghost story"}
-            ],
-            temperature=0.6,
-            max_tokens=1800,
-            response_format={"type": "json_object"}
-        )
+        max_attempts = 2
 
-        # API already guarantees valid JSON
-        data = json.loads(response.choices[0].message.content)
+        for attempt in range(max_attempts):
+            try:
+                response = self.client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": context or "Generate a ghost story"}
+                    ],
+                    temperature=0.6,
+                    max_tokens=1500  # reduced from 2200 (safer)
+                )
 
-        # Clean story ONLY for TTS
-        data["story"] = self._clean_story_for_tts(data["story"])
+                raw_output = response.choices[0].message.content
 
-        # Validate schema
-        for key in ("story", "title", "description", "thumbnail_prompt"):
-            if key not in data or not data[key].strip():
-                raise ValueError(f"Missing or empty field: {key}")
+                data = self._extract_json(raw_output)
 
-        return data
+                # Clean story for TTS
+                data["story"] = self._clean_story_for_tts(data["story"])
+
+                # Validate fields
+                self._validate_schema(data)
+
+                return data
+
+            except Exception as e:
+                print(f"Attempt {attempt+1} failed:", str(e))
+                time.sleep(1)
+
+        raise RuntimeError("Story generation failed after retries.")
